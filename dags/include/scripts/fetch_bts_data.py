@@ -15,21 +15,8 @@ from utils.constants import (
     MINIO_ROOT_USER,
 )
 
-# argparse to accept arguments
-# check for valid year
-# create url
-# submit request
-# receive response
-# write to filesystem / replace with object storage
 
-# add checks and/or exceptions
-# default scenario for optional args
-
-
-# could add an end year argument that defaults to current year
-
-
-def main(start_year, end_year, month):
+def main(start_year, end_year):
     minio_client = Minio(
         endpoint="localhost:9000",
         access_key=MINIO_ROOT_USER,
@@ -38,10 +25,9 @@ def main(start_year, end_year, month):
     )
 
     while start_year <= end_year:
-        for i in range(month, MAX_MONTH + 1):
-            if start_year == end_year and i == datetime.date.today().month:
+        for month in range(1, MAX_MONTH + 1):
+            if start_year == end_year and month == datetime.date.today().month:
                 print("breaking out of loop")
-                break
 
             object = f"BTS/{start_year}/{BTS_FILENAME}_{start_year}_{month}.zip"
             full_url = urljoin(BTS_BASE_URL, object)
@@ -71,26 +57,21 @@ if __name__ == "__main__":
         description="Fetch Bureau of Transportation Statistics data"
     )
 
-    parser.add_argument("--year", type=int, required=True, help="Year to start from")
-    parser.add_argument("--month", type=int, required=True, help="Month to start from")
+    parser.add_argument("--start-year", type=int, required=True, help="Year from")
+    parser.add_argument(
+        "--end-year",
+        type=int,
+        required=False,
+        default=datetime.date.today().year,
+        help="Year to",
+    )
 
     args = parser.parse_args()
 
-    if args.year < BTS_START_YEAR:
+    if args.start_year < BTS_START_YEAR:
         raise ValueError(f"Year must be greater than {BTS_START_YEAR}")
 
-    if args.year > datetime.date.today().year:
-        raise ValueError(
-            f"Year must be less than or equal to {datetime.date.today().year}"
-        )
+    if args.start_year > args.end_year:
+        raise ValueError(f"Year must be less than or equal to {args.end_year}")
 
-    if args.month > MAX_MONTH:
-        raise ValueError(f"Month must be less than {MAX_MONTH}")
-
-    if (
-        args.year == datetime.date.today().year
-        and args.month > datetime.date.today().month
-    ):
-        raise ValueError("Invalid year and month combination")
-
-    main(start_year=args.year, end_year=args.year, month=args.month)
+    main(start_year=args.start_year, end_year=args.end_year)
