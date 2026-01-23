@@ -14,11 +14,9 @@ x-airflow-common:
   volumes:
     - ./dags:/opt/airflow/dags
     - ./data:/opt/airflow/data
-    - ./visualization:/opt/airflow/visualization
     - ./logs:/opt/airflow/logs
     - ./plugins:/opt/airflow/plugins
     - ./tests:/opt/airflow/tests
-    - ./temp:/opt/airflow/temp
   user: "${AIRFLOW_UID:-50000}:${AIRFLOW_GID:-50000}"
   depends_on:
     postgres:
@@ -33,8 +31,7 @@ services:
       POSTGRES_PASSWORD: airflow
       POSTGRES_DB: airflow
     volumes:
-      - ./containers/upstream:/docker-entrypoint-initdb.d
-      - ./data:/input_data
+      - postgres-db-volume:/var/lib/postgresql/data
     healthcheck:
       test: [ "CMD", "pg_isready", "-U", "airflow" ]
       interval: 5s
@@ -92,11 +89,27 @@ services:
     hostname: minio
     container_name: minio
     ports:
-      - '9000:9000'  
+      - '9000:9000'
       - '9001:9001'
     environment:
-      MINIO_ACCESS_KEY: minio
-      MINIO_SECRET_KEY: minio123
       MINIO_ROOT_USER: minio
       MINIO_ROOT_PASSWORD: minio123
     command: server --console-address ":9001" /data
+
+  createbuckets:
+    image: minio/mc
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      until mc alias set flightpath http://minio:9000 minio minio123; do
+        echo 'Waiting for MinIO...';
+        sleep 3;
+      done;
+      mc mb flightpath/bronze --ignore-existing;
+      mc anonymous set public flightpath/bronze;
+      exit 0;
+      "
+
+volumes:
+  postgres-db-volume:
