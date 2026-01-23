@@ -12,6 +12,7 @@ from utils.constants import (
     BTS_START_YEAR,
     BUCKET_BRONZE,
     MAX_MONTH,
+    MINIO_ENDPOINT,
     MINIO_ROOT_PASSWORD,
     MINIO_ROOT_USER,
 )
@@ -44,7 +45,7 @@ def _write_to_minio(minio_client, object, url):
 
 def main(end_year, month=None):
     minio_client = Minio(
-        endpoint="localhost:9000",
+        endpoint=MINIO_ENDPOINT,
         access_key=MINIO_ROOT_USER,
         secret_key=MINIO_ROOT_PASSWORD,
         secure=False,
