@@ -1,5 +1,6 @@
 import argparse
 import datetime
+import logging
 import time
 from urllib.parse import urljoin
 
@@ -16,30 +17,41 @@ from utils.constants import (
     MINIO_ROOT_USER,
 )
 
+logger = logging.getLogger(__name__)  # Airflow logger
 
-def _write_to_minio(minio_client, year, month):
-    prefix = f"BTS/{year}"
-    object = f"{BTS_FILENAME}_{year}_{month}.zip"
+
+def _write_to_minio(
+    minio_client: Minio, bts_year: int, bts_month: int, raise_on_emtpy: bool = False
+):
+    prefix = f"BTS/{bts_year}"
+    object = f"{BTS_FILENAME}_{bts_year}_{bts_month}.zip"
     full_url = urljoin(BTS_BASE_URL, object)
 
     with requests.get(full_url, stream=True) as response:
         response.raise_for_status()
-        breakpoint()
         file_size = int(response.headers.get("Content-Length", 0))
 
-        if file_size > 0:
-            minio_client.put_object(
-                bucket_name=BUCKET_BRONZE,
-                object_name=f"{prefix}/{object}",
-                data=response.raw,
-                length=file_size,
-                part_size=10 * 1024 * 1024,
+        if file_size == 0:
+            file_size_message = (
+                f"File size is 0 for {bts_year}-{bts_month} from {full_url}"
             )
+            if raise_on_emtpy:
+                raise ValueError(file_size_message)
+            else:
+                logger.warning(file_size_message)
+                return
 
-    time.sleep(3)
+        minio_client.put_object(
+            bucket_name=BUCKET_BRONZE,
+            object_name=f"{prefix}/{object}",
+            data=response.raw,
+            length=file_size,
+            part_size=10 * 1024 * 1024,
+        )
+        logger.info(f"File {object} uploaded to {BUCKET_BRONZE}/{prefix}/ successfully")
 
 
-def main(end_year, month=None):
+def main(api_delay: int, bts_end_year: int, bts_month: int | None = None):
     minio_client = Minio(
         endpoint=MINIO_ENDPOINT,
         access_key=MINIO_ROOT_USER,
@@ -47,19 +59,20 @@ def main(end_year, month=None):
         secure=False,
     )
 
-    if month:
-        _write_to_minio(minio_client, end_year, month)
-        return "Incremental Processing Complete"
+    if bts_month:
+        _write_to_minio(minio_client, bts_end_year, bts_month, True)
+        return
 
     start_year = BTS_START_YEAR
-    while start_year <= end_year:
+    while start_year <= bts_end_year:
         for _month in range(1, MAX_MONTH + 1):
-            _write_to_minio(minio_client, end_year, _month)
+            _write_to_minio(minio_client, bts_end_year, _month)
         start_year += 1
-    return "Processing Complete"
+        time.sleep(api_delay)
+    return
 
 
-if __name__ == "__main__":
+def cli():
     parser = argparse.ArgumentParser(
         description="Fetch Bureau of Transportation Statistics data"
     )
@@ -69,28 +82,32 @@ if __name__ == "__main__":
     )
     parser.add_argument("--year", type=int)
     parser.add_argument("--month", type=int)
+    parser.add_argument("--api-delay", type=int, default=2)
     args = parser.parse_args()
+    today = datetime.date.today()
 
-    if args.type == "all":
-        end_year = datetime.date.today().year
-        main(end_year)
+    match args.type:
+        case "all":
+            main(today.year)
 
-    if args.type == "incremental":
-        if args.year is None or args.month is None:
-            parser.error("argument --type incremental requires --year and --month")
+        case "incremental":
+            if args.year is None or args.month is None:
+                parser.error("argument --type incremental requires --year and --month")
 
-        if args.year < BTS_START_YEAR:
-            parser.error(f"argument --year must be greater than {BTS_START_YEAR}")
+            if args.year < BTS_START_YEAR:
+                parser.error(f"argument --year must be greater than {BTS_START_YEAR}")
 
-        year = datetime.date.today().year
-        month = datetime.date.today().month
-        if args.year > year:
-            parser.error(f"argument --year must be less than {year}")
+            if args.year > today.year:
+                parser.error(f"argument --year must be less than {today.year}")
 
-        if args.year == year and args.month >= month:
-            parser.error(f"argument --month must be less than {month}")
+            if args.year == today.year and args.month >= today.month:
+                parser.error(f"argument --month must be less than {today.month}")
 
-        if args.month > MAX_MONTH:
-            parser.error(f"argument --month must be less than {MAX_MONTH}")
+            if args.month > MAX_MONTH:
+                parser.error(f"argument --month must be less than {MAX_MONTH}")
 
-        main(args.year, args.month)
+            main(args.api_delay, args.year, args.month)
+
+
+if __name__ == "__main__":
+    cli()
