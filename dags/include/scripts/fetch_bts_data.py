@@ -39,7 +39,7 @@ def _write_to_minio(
                 raise ValueError(file_size_message)
             else:
                 logger.warning(file_size_message)
-                return
+                return None
 
         minio_client.put_object(
             bucket_name=BUCKET_BRONZE,
@@ -51,7 +51,7 @@ def _write_to_minio(
         logger.info(f"File {object} uploaded to {BUCKET_BRONZE}/{prefix}/ successfully")
 
 
-def main(api_delay: int, bts_end_year: int, bts_month: int | None = None):
+def main(api_delay: int, bts_year: int, bts_month: int | None = None):
     minio_client = Minio(
         endpoint=MINIO_ENDPOINT,
         access_key=MINIO_ROOT_USER,
@@ -60,16 +60,16 @@ def main(api_delay: int, bts_end_year: int, bts_month: int | None = None):
     )
 
     if bts_month:
-        _write_to_minio(minio_client, bts_end_year, bts_month, True)
-        return
+        _write_to_minio(minio_client, bts_year, bts_month, True)
+        return None
 
     start_year = BTS_START_YEAR
-    while start_year <= bts_end_year:
+    while start_year <= bts_year:
         for _month in range(1, MAX_MONTH + 1):
-            _write_to_minio(minio_client, bts_end_year, _month)
+            _write_to_minio(minio_client, start_year, _month)
         start_year += 1
         time.sleep(api_delay)
-    return
+    return None
 
 
 def cli():
