@@ -5,6 +5,7 @@ BTS_BASE_URL = "https://transtats.bts.gov/PREZIP/"
 BTS_FILENAME = "On_Time_Reporting_Carrier_On_Time_Performance_1987_present"
 MAX_MONTH = 12
 
+BUCKET_LANDING = "landing"
 BUCKET_BRONZE = "bronze"
 BUCKET_SILVER = "silver"
 BUCKET_GOLD = "gold"

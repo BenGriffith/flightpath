@@ -10,7 +10,7 @@ from utils.constants import (
     BTS_BASE_URL,
     BTS_FILENAME,
     BTS_START_YEAR,
-    BUCKET_BRONZE,
+    BUCKET_LANDING,
     MAX_MONTH,
     MINIO_ENDPOINT,
     MINIO_ROOT_PASSWORD,
@@ -42,13 +42,15 @@ def _write_to_minio(
                 return None
 
         minio_client.put_object(
-            bucket_name=BUCKET_BRONZE,
+            bucket_name=BUCKET_LANDING,
             object_name=f"{prefix}/{object}",
             data=response.raw,
             length=file_size,
             part_size=10 * 1024 * 1024,
         )
-        logger.info(f"File {object} uploaded to {BUCKET_BRONZE}/{prefix}/ successfully")
+        logger.info(
+            f"File {object} uploaded to {BUCKET_LANDING}/{prefix}/ successfully"
+        )
 
 
 def main(api_delay: int, bts_year: int, bts_month: int | None = None):
