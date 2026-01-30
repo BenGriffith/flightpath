@@ -106,8 +106,11 @@ services:
         echo 'Waiting for MinIO...';
         sleep 3;
       done;
+      mc mb flightpath/landing --ignore-existing;
       mc mb flightpath/bronze --ignore-existing;
-      mc anonymous set public flightpath/bronze;
+      mc mb flightpath/silver --ignore-existing;
+      mc mb flightpath/gold --ignore-existing;
+      mc anonymous set public flightpath/landing;
       exit 0;
       "
 
