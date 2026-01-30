@@ -6,6 +6,7 @@ from urllib.parse import urljoin
 
 import requests
 from minio import Minio
+from scripts.unzip_bts_data import write_to_bronze
 from utils.constants import (
     BTS_BASE_URL,
     BTS_FILENAME,
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)  # Airflow logger
 
 def _write_to_minio(
     minio_client: Minio, bts_year: int, bts_month: int, raise_on_emtpy: bool = False
-):
+) -> str:
     prefix = f"BTS/{bts_year}"
     object = f"{BTS_FILENAME}_{bts_year}_{bts_month}.zip"
     full_url = urljoin(BTS_BASE_URL, object)
@@ -41,19 +42,22 @@ def _write_to_minio(
                 logger.warning(file_size_message)
                 return None
 
-        minio_client.put_object(
+        result = minio_client.put_object(
             bucket_name=BUCKET_LANDING,
             object_name=f"{prefix}/{object}",
             data=response.raw,
             length=file_size,
             part_size=10 * 1024 * 1024,
         )
+
         logger.info(
-            f"File {object} uploaded to {BUCKET_LANDING}/{prefix}/ successfully"
+            f"File {result.object_name} uploaded to {BUCKET_LANDING} successfully"
         )
 
+        return f"/{prefix}/{object}"
 
-def main(api_delay: int, bts_year: int, bts_month: int | None = None):
+
+def main(api_delay: int, bts_year: int, bts_month: int | None = None) -> list[str]:
     minio_client = Minio(
         endpoint=MINIO_ENDPOINT,
         access_key=MINIO_ROOT_USER,
@@ -61,20 +65,23 @@ def main(api_delay: int, bts_year: int, bts_month: int | None = None):
         secure=False,
     )
 
+    bts_objects = []
     if bts_month:
-        _write_to_minio(minio_client, bts_year, bts_month, True)
-        return None
+        object = _write_to_minio(minio_client, bts_year, bts_month, True)
+        bts_objects.append(object)
+        return bts_objects
 
     start_year = BTS_START_YEAR
     while start_year <= bts_year:
         for _month in range(1, MAX_MONTH + 1):
-            _write_to_minio(minio_client, start_year, _month)
+            object = _write_to_minio(minio_client, start_year, _month)
+            bts_objects.append(object)
         start_year += 1
         time.sleep(api_delay)
-    return None
+    return bts_objects
 
 
-def cli():
+def cli() -> list[str]:
     parser = argparse.ArgumentParser(
         description="Fetch Bureau of Transportation Statistics data"
     )
@@ -108,8 +115,10 @@ def cli():
             if args.month > MAX_MONTH:
                 parser.error(f"argument --month must be less than {MAX_MONTH}")
 
-            main(args.api_delay, args.year, args.month)
+            bts_objects = main(args.api_delay, args.year, args.month)
+            return bts_objects
 
 
 if __name__ == "__main__":
-    cli()
+    objects_created = cli()
+    write_to_bronze(objects_created)
