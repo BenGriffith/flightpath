@@ -12,6 +12,7 @@ from utils.constants import (
     BTS_FILENAME,
     BTS_START_YEAR,
     BUCKET_LANDING,
+    CONTENT_TYPE,
     MAX_MONTH,
     MIN_MONTH,
     MINIO_ENDPOINT,
@@ -25,7 +26,7 @@ logger = get_logger(__name__)
 
 def _write_to_minio(
     minio_client: Minio, bts_year: int, bts_month: int, raise_on_empty: bool = False
-) -> str:
+) -> str | None:
     prefix = f"BTS/{bts_year}"
     bts_object = f"{BTS_FILENAME}_{bts_year}_{bts_month}.zip"
     full_url = f"{BTS_BASE_URL}{bts_object}"
@@ -43,6 +44,11 @@ def _write_to_minio(
             else:
                 logger.warning(file_size_message)
                 return None
+
+        if response.headers.get("Content-Type") != CONTENT_TYPE:
+            raise ValueError(
+                f"Content-Type for {bts_year}-{bts_month} from {full_url} is {response.headers.get("Content-Type")}"
+            )
 
         result = minio_client.put_object(
             bucket_name=BUCKET_LANDING,
