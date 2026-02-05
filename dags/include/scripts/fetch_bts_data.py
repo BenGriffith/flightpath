@@ -4,9 +4,7 @@ import sys
 import time
 
 import requests
-from minio import Minio
-
-from dags.include.utils.constants import (
+from include.utils.constants import (
     API_DELAY,
     BTS_BASE_URL,
     BTS_FILENAME,
@@ -19,7 +17,8 @@ from dags.include.utils.constants import (
     MINIO_ROOT_PASSWORD,
     MINIO_ROOT_USER,
 )
-from dags.include.utils.logger import get_logger
+from include.utils.logger import get_logger
+from minio import Minio
 
 logger = get_logger(__name__)
 

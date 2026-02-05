@@ -1,15 +1,15 @@
 import io
 import zipfile
 
-from minio import Minio
-from utils.constants import (
+from include.utils.constants import (
     BUCKET_BRONZE,
     BUCKET_LANDING,
     MINIO_ENDPOINT,
     MINIO_ROOT_PASSWORD,
     MINIO_ROOT_USER,
 )
-from utils.logger import get_logger
+from include.utils.logger import get_logger
+from minio import Minio
 
 logger = get_logger(__name__)
 
