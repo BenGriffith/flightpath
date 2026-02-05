@@ -5,8 +5,8 @@ import time
 
 import requests
 from minio import Minio
-from scripts.unzip_bts_data import move_to_bronze
-from utils.constants import (
+
+from dags.include.utils.constants import (
     API_DELAY,
     BTS_BASE_URL,
     BTS_FILENAME,
@@ -19,7 +19,7 @@ from utils.constants import (
     MINIO_ROOT_PASSWORD,
     MINIO_ROOT_USER,
 )
-from utils.logger import get_logger
+from dags.include.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
@@ -84,7 +84,7 @@ def main(api_delay: int, bts_year: int, bts_month: int | None = None) -> list[st
 
     start_year = BTS_START_YEAR
     while start_year <= bts_year:
-        for month in range(1, MAX_MONTH + 1):
+        for month in range(MIN_MONTH, MAX_MONTH + 1):
             logger.info(f"Processing {start_year}-{month}")
             object = _write_to_minio(minio_client, start_year, month)
             bts_objects.append(object)
@@ -94,7 +94,7 @@ def main(api_delay: int, bts_year: int, bts_month: int | None = None) -> list[st
     return bts_objects
 
 
-def cli() -> list[str]:
+def cli(argv=None) -> list[str]:
     parser = argparse.ArgumentParser(
         description="Fetch Bureau of Transportation Statistics data"
     )
@@ -105,12 +105,13 @@ def cli() -> list[str]:
     parser.add_argument("--year", type=int)
     parser.add_argument("--month", type=int)
     parser.add_argument("--api-delay", type=int, default=API_DELAY)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     today = datetime.date.today()
 
     match args.type:
         case "all":
-            main(args.api_delay, today.year)
+            bts_objects = main(args.api_delay, today.year)
+            return bts_objects
 
         case "incremental":
             if args.year is None or args.month is None:
@@ -137,10 +138,6 @@ def cli() -> list[str]:
 if __name__ == "__main__":
     try:
         objects_created = cli()
-        move_to_bronze(objects_created)
-    except ValueError as error:
-        logger.exception(error)
-        sys.exit(1)
     except Exception as error:
         logger.exception(error)
         sys.exit(1)
