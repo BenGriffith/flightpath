@@ -1,23 +1,6 @@
 import logging
-import os
+import sys
 from typing import Optional
-
-
-def _configure_local_logger(logger: logging.Logger) -> None:
-    if getattr(logger, "_configured_by_project", False):
-        return
-
-    logger.setLevel(logging.DEBUG)
-    handler = logging.StreamHandler()
-    fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
-    handler.setFormatter(fmt)
-
-    # avoid duplicating handlers
-    logger.handlers = []
-    logger.addHandler(handler)
-    logger.propagate = False
-
-    setattr(logger, "_configured_by_project", True)
 
 
 def get_logger(name: Optional[str] = None) -> logging.Logger:
@@ -27,11 +10,25 @@ def get_logger(name: Optional[str] = None) -> logging.Logger:
 
     logger = logging.getLogger(name)
 
-    # Airflow sets AIRFLOW_CTX_DAG_ID in task runtime. Prefer Airflow's
-    # logging configuration when present.
-    if os.getenv("AIRFLOW_CTX_DAG_ID"):
+    # Always ensure INFO level (default might be WARNING or NOTSET)
+    logger.setLevel(logging.INFO)
+
+    # Always allow propagation so Airflow's root logger catches the logs
+    logger.propagate = True
+
+    # If already configured, we are done
+    if getattr(logger, "_configured_by_project", False):
         return logger
 
-    # local development: ensure a readable console logger
-    _configure_local_logger(logger)
+    # If we are effectively "local" (no existing handlers), add a stream handler.
+    # This ensures functionality for local scripts.
+    # We DO NOT disable propagation, so this is safe for Airflow too
+    # (Airflow will capture the propagated log + potentially this stdout one).
+    if not logger.handlers:
+        handler = logging.StreamHandler(sys.stdout)
+        fmt = logging.Formatter("%(asctime)s %(levelname)s %(name)s: %(message)s")
+        handler.setFormatter(fmt)
+        logger.addHandler(handler)
+
+    setattr(logger, "_configured_by_project", True)
     return logger
