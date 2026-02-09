@@ -17,8 +17,7 @@ logger = get_logger(__name__)
 def process_zip_file(
     client: Minio, source_bucket: str, target_bucket: str, object: str
 ) -> None:
-    try:
-        response = client.get_object(source_bucket, object)
+    with client.get_object(source_bucket, object) as response:
         zip_data = response.read()
 
         # Unzip in-memory and write each file to target bucket
@@ -37,9 +36,6 @@ def process_zip_file(
                 logger.info(
                     f"File {object} unzipped and moved to {BUCKET_BRONZE}{result.object_name}"
                 )
-    finally:
-        response.close()
-        response.release_conn()
 
 
 def move_to_bronze(bts_objects: list[str]) -> None:

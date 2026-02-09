@@ -64,7 +64,9 @@ def _write_to_minio(
         return f"/{prefix}/{bts_object}"
 
 
-def main(api_delay: int, bts_year: int, bts_month: int | None = None) -> list[str]:
+def main(
+    api_delay: int, bts_year: int, bts_month: int | None = None
+) -> list[str] | None:
     minio_client = Minio(
         endpoint=MINIO_ENDPOINT,
         access_key=MINIO_ROOT_USER,
@@ -76,8 +78,8 @@ def main(api_delay: int, bts_year: int, bts_month: int | None = None) -> list[st
     bts_objects = []
     if bts_month is not None:
         logger.info(f"Processing {bts_year}-{bts_month}")
-        object = _write_to_minio(minio_client, bts_year, bts_month, True)
-        bts_objects.append(object)
+        bts_object = _write_to_minio(minio_client, bts_year, bts_month, True)
+        bts_objects.append(bts_object)
         logger.info("Ending data retrieval...")
         return bts_objects
 
@@ -85,15 +87,15 @@ def main(api_delay: int, bts_year: int, bts_month: int | None = None) -> list[st
     while start_year <= bts_year:
         for month in range(MIN_MONTH, MAX_MONTH + 1):
             logger.info(f"Processing {start_year}-{month}")
-            object = _write_to_minio(minio_client, start_year, month)
-            bts_objects.append(object)
+            bts_object = _write_to_minio(minio_client, start_year, month)
+            bts_objects.append(bts_object)
             time.sleep(api_delay)
         start_year += 1
     logger.info("Ending data retrieval...")
     return bts_objects
 
 
-def cli(argv=None) -> list[str]:
+def cli(argv=None) -> list[str] | None:
     parser = argparse.ArgumentParser(
         description="Fetch Bureau of Transportation Statistics data"
     )
