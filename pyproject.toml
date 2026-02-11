@@ -6,7 +6,15 @@ readme = "README.md"
 requires-python = ">=3.13"
 dependencies = [
     "minio>=7.2.20",
-    "pytest>=9.0.2",
-    "pytest-mock>=3.15.1",
+    "python-dateutil>=2.9.0.post0",
+    "python-decouple>=3.8",
     "requests>=2.32.5",
+]
+
+[dependency-groups]
+dev = [
+    "apache-airflow>=3.1.7",
+    "pytest>=9.0.2",
+    "pytest-minio-mock>=0.4.19",
+    "pytest-mock>=3.15.1",
 ]
