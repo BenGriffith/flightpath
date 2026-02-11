@@ -4,28 +4,28 @@ import sys
 import time
 
 import requests
-from minio import Minio
-from scripts.unzip_bts_data import move_to_bronze
-from utils.constants import (
+from include.utils.constants import (
     API_DELAY,
     BTS_BASE_URL,
     BTS_FILENAME,
     BTS_START_YEAR,
     BUCKET_LANDING,
+    CONTENT_TYPE,
     MAX_MONTH,
     MIN_MONTH,
     MINIO_ENDPOINT,
     MINIO_ROOT_PASSWORD,
     MINIO_ROOT_USER,
 )
-from utils.logger import get_logger
+from include.utils.logger import get_logger
+from minio import Minio
 
 logger = get_logger(__name__)
 
 
 def _write_to_minio(
     minio_client: Minio, bts_year: int, bts_month: int, raise_on_empty: bool = False
-) -> str:
+) -> str | None:
     prefix = f"BTS/{bts_year}"
     bts_object = f"{BTS_FILENAME}_{bts_year}_{bts_month}.zip"
     full_url = f"{BTS_BASE_URL}{bts_object}"
@@ -44,6 +44,11 @@ def _write_to_minio(
                 logger.warning(file_size_message)
                 return None
 
+        if response.headers.get("Content-Type") != CONTENT_TYPE:
+            raise ValueError(
+                f"Content-Type for {bts_year}-{bts_month} from {full_url} is {response.headers.get('Content-Type')}"
+            )
+
         result = minio_client.put_object(
             bucket_name=BUCKET_LANDING,
             object_name=f"{prefix}/{bts_object}",
@@ -59,7 +64,9 @@ def _write_to_minio(
         return f"/{prefix}/{bts_object}"
 
 
-def main(api_delay: int, bts_year: int, bts_month: int | None = None) -> list[str]:
+def main(
+    api_delay: int, bts_year: int, bts_month: int | None = None
+) -> list[str] | None:
     minio_client = Minio(
         endpoint=MINIO_ENDPOINT,
         access_key=MINIO_ROOT_USER,
@@ -67,28 +74,28 @@ def main(api_delay: int, bts_year: int, bts_month: int | None = None) -> list[st
         secure=False,
     )
 
-    logger.info("Starting retrieval Bureau of Transporation Statistics data...")
+    logger.info("Starting retrieval Bureau of Transportation Statistics data...")
     bts_objects = []
     if bts_month is not None:
         logger.info(f"Processing {bts_year}-{bts_month}")
-        object = _write_to_minio(minio_client, bts_year, bts_month, True)
-        bts_objects.append(object)
+        bts_object = _write_to_minio(minio_client, bts_year, bts_month, True)
+        bts_objects.append(bts_object)
         logger.info("Ending data retrieval...")
         return bts_objects
 
     start_year = BTS_START_YEAR
     while start_year <= bts_year:
-        for month in range(1, MAX_MONTH + 1):
+        for month in range(MIN_MONTH, MAX_MONTH + 1):
             logger.info(f"Processing {start_year}-{month}")
-            object = _write_to_minio(minio_client, start_year, month)
-            bts_objects.append(object)
+            bts_object = _write_to_minio(minio_client, start_year, month)
+            bts_objects.append(bts_object)
             time.sleep(api_delay)
         start_year += 1
     logger.info("Ending data retrieval...")
     return bts_objects
 
 
-def cli() -> list[str]:
+def cli(argv=None) -> list[str] | None:
     parser = argparse.ArgumentParser(
         description="Fetch Bureau of Transportation Statistics data"
     )
@@ -99,12 +106,13 @@ def cli() -> list[str]:
     parser.add_argument("--year", type=int)
     parser.add_argument("--month", type=int)
     parser.add_argument("--api-delay", type=int, default=API_DELAY)
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     today = datetime.date.today()
 
     match args.type:
         case "all":
-            main(args.api_delay, today.year)
+            bts_objects = main(args.api_delay, today.year)
+            return bts_objects
 
         case "incremental":
             if args.year is None or args.month is None:
@@ -131,10 +139,6 @@ def cli() -> list[str]:
 if __name__ == "__main__":
     try:
         objects_created = cli()
-        move_to_bronze(objects_created)
-    except ValueError as error:
-        logger.exception(error)
-        sys.exit(1)
     except Exception as error:
         logger.exception(error)
         sys.exit(1)

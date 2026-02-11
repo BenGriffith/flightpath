@@ -1,15 +1,15 @@
 import io
 import zipfile
 
-from minio import Minio
-from utils.constants import (
+from include.utils.constants import (
     BUCKET_BRONZE,
     BUCKET_LANDING,
     MINIO_ENDPOINT,
     MINIO_ROOT_PASSWORD,
     MINIO_ROOT_USER,
 )
-from utils.logger import get_logger
+from include.utils.logger import get_logger
+from minio import Minio
 
 logger = get_logger(__name__)
 
@@ -17,8 +17,7 @@ logger = get_logger(__name__)
 def process_zip_file(
     client: Minio, source_bucket: str, target_bucket: str, object: str
 ) -> None:
-    try:
-        response = client.get_object(source_bucket, object)
+    with client.get_object(source_bucket, object) as response:
         zip_data = response.read()
 
         # Unzip in-memory and write each file to target bucket
@@ -37,12 +36,9 @@ def process_zip_file(
                 logger.info(
                     f"File {object} unzipped and moved to {BUCKET_BRONZE}{result.object_name}"
                 )
-    finally:
-        response.close()
-        response.release_conn()
 
 
-def move_to_bronze(bts_objects: list[str]) -> None:
+def move_to_bronze(bts_objects: list[str] | None) -> None:
     minio_client = Minio(
         endpoint=MINIO_ENDPOINT,
         access_key=MINIO_ROOT_USER,
@@ -51,6 +47,6 @@ def move_to_bronze(bts_objects: list[str]) -> None:
     )
 
     logger.info("Starting unzipping process...")
-    for object in bts_objects:
-        process_zip_file(minio_client, BUCKET_LANDING, BUCKET_BRONZE, object)
+    for bts_object in bts_objects:
+        process_zip_file(minio_client, BUCKET_LANDING, BUCKET_BRONZE, bts_object)
     logger.info("Ending unzipping process...")

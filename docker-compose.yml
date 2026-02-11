@@ -1,7 +1,8 @@
 x-airflow-common:
   &airflow-common
   build:
-    context: ./containers/airflow/
+    context: .
+    dockerfile: containers/airflow/Dockerfile
   environment:
     &airflow-common-env
     AIRFLOW__CORE__EXECUTOR: LocalExecutor
@@ -109,8 +110,9 @@ services:
       mc mb flightpath/landing --ignore-existing;
       mc mb flightpath/bronze --ignore-existing;
       mc mb flightpath/silver --ignore-existing;
-      mc mb flightpath/gold --ignore-existing;
       mc anonymous set public flightpath/landing;
+      mc anonymous set public flightpath/bronze;
+      mc anonymous set public flightpath/silver;
       exit 0;
       "
 
