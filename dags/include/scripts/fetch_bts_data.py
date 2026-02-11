@@ -46,7 +46,7 @@ def _write_to_minio(
 
         if response.headers.get("Content-Type") != CONTENT_TYPE:
             raise ValueError(
-                f"Content-Type for {bts_year}-{bts_month} from {full_url} is {response.headers.get("Content-Type")}"
+                f"Content-Type for {bts_year}-{bts_month} from {full_url} is {response.headers.get('Content-Type')}"
             )
 
         result = minio_client.put_object(
@@ -74,7 +74,7 @@ def main(
         secure=False,
     )
 
-    logger.info("Starting retrieval Bureau of Transporation Statistics data...")
+    logger.info("Starting retrieval Bureau of Transportation Statistics data...")
     bts_objects = []
     if bts_month is not None:
         logger.info(f"Processing {bts_year}-{bts_month}")
