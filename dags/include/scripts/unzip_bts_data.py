@@ -38,7 +38,7 @@ def process_zip_file(
                 )
 
 
-def move_to_bronze(bts_objects: list[str]) -> None:
+def move_to_bronze(bts_objects: list[str] | None) -> None:
     minio_client = Minio(
         endpoint=MINIO_ENDPOINT,
         access_key=MINIO_ROOT_USER,
@@ -47,6 +47,6 @@ def move_to_bronze(bts_objects: list[str]) -> None:
     )
 
     logger.info("Starting unzipping process...")
-    for object in bts_objects:
-        process_zip_file(minio_client, BUCKET_LANDING, BUCKET_BRONZE, object)
+    for bts_object in bts_objects:
+        process_zip_file(minio_client, BUCKET_LANDING, BUCKET_BRONZE, bts_object)
     logger.info("Ending unzipping process...")
