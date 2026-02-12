@@ -1,0 +1,2 @@
+class EmptyFileSkipped(Exception):
+    pass
