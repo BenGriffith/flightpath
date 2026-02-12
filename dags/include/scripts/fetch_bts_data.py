@@ -4,7 +4,9 @@ import sys
 import time
 
 import requests
-from include.utils.constants import (
+from minio import Minio
+
+from dags.include.utils.constants import (
     API_DELAY,
     BTS_BASE_URL,
     BTS_FILENAME,
@@ -17,15 +19,15 @@ from include.utils.constants import (
     MINIO_ROOT_PASSWORD,
     MINIO_ROOT_USER,
 )
-from include.utils.logger import get_logger
-from minio import Minio
+from dags.include.utils.exceptions import EmptyFileSkipped
+from dags.include.utils.logger import get_logger
 
 logger = get_logger(__name__)
 
 
 def _write_to_minio(
     minio_client: Minio, bts_year: int, bts_month: int, raise_on_empty: bool = False
-) -> str | None:
+) -> str:
     prefix = f"BTS/{bts_year}"
     bts_object = f"{BTS_FILENAME}_{bts_year}_{bts_month}.zip"
     full_url = f"{BTS_BASE_URL}{bts_object}"
@@ -42,7 +44,7 @@ def _write_to_minio(
                 raise ValueError(file_size_message)
             else:
                 logger.warning(file_size_message)
-                return None
+                raise EmptyFileSkipped
 
         if response.headers.get("Content-Type") != CONTENT_TYPE:
             raise ValueError(
@@ -64,9 +66,7 @@ def _write_to_minio(
         return f"/{prefix}/{bts_object}"
 
 
-def main(
-    api_delay: int, bts_year: int, bts_month: int | None = None
-) -> list[str] | None:
+def main(api_delay: int, bts_year: int, bts_month: int | None = None) -> list[str]:
     minio_client = Minio(
         endpoint=MINIO_ENDPOINT,
         access_key=MINIO_ROOT_USER,
@@ -75,11 +75,15 @@ def main(
     )
 
     logger.info("Starting retrieval Bureau of Transportation Statistics data...")
-    bts_objects = []
+    bts_objects: list[str] = []
     if bts_month is not None:
         logger.info(f"Processing {bts_year}-{bts_month}")
-        bts_object = _write_to_minio(minio_client, bts_year, bts_month, True)
-        bts_objects.append(bts_object)
+        try:
+            bts_object = _write_to_minio(minio_client, bts_year, bts_month, True)
+            bts_objects.append(bts_object)
+        except EmptyFileSkipped:
+            logger.info(f"Skipping {bts_year}-{bts_month}")
+            return bts_objects
         logger.info("Ending data retrieval...")
         return bts_objects
 
@@ -87,15 +91,19 @@ def main(
     while start_year <= bts_year:
         for month in range(MIN_MONTH, MAX_MONTH + 1):
             logger.info(f"Processing {start_year}-{month}")
-            bts_object = _write_to_minio(minio_client, start_year, month)
-            bts_objects.append(bts_object)
+            try:
+                bts_object = _write_to_minio(minio_client, start_year, month)
+                bts_objects.append(bts_object)
+            except EmptyFileSkipped:
+                logger.info(f"Skipping {start_year}-{month}")
+                continue
             time.sleep(api_delay)
         start_year += 1
     logger.info("Ending data retrieval...")
     return bts_objects
 
 
-def cli(argv=None) -> list[str] | None:
+def cli(argv=None) -> list[str]:
     parser = argparse.ArgumentParser(
         description="Fetch Bureau of Transportation Statistics data"
     )
@@ -134,6 +142,9 @@ def cli(argv=None) -> list[str] | None:
 
             bts_objects = main(args.api_delay, args.year, args.month)
             return bts_objects
+
+        case _:
+            parser.error("argument --type must be incremental or all")
 
 
 if __name__ == "__main__":
